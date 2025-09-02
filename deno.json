@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "start": "deno run --allow-read --allow-write --allow-run src/main.ts"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true
+  }
+}
