@@ -4,7 +4,7 @@ import { parseArgs } from "./cli.ts";
 import { getGitHistory, checkoutCommit } from "./git.ts";
 import { startQuartoPreview, stopQuartoPreview } from "./quarto.ts";
 import { captureScreen, copyFile } from "./capture.ts";
-import { ensureDir, sleep } from "./utils.ts";
+import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
 import { checkPermissions, displayScreenCapturePermissionWarning } from "./permissions.ts";
 
 /**
@@ -24,6 +24,11 @@ async function main() {
     
     // Parse command line arguments
     const options = parseArgs();
+    
+    // Get screen capture rectangle once at startup
+    console.log("Getting screen capture rectangle...");
+    const screenRect = await getLastSelectionRect();
+    console.log(`Using screen rectangle: X=${screenRect.x}, Y=${screenRect.y}, Width=${screenRect.width}, Height=${screenRect.height}`);
     console.log("Output directory:", options.outputDir);
     console.log("Input directory:", options.inputDir);
     if (options.file) console.log("File to preview:", options.file);
@@ -60,7 +65,7 @@ async function main() {
       // Capture screenshot
       const screenshotPath = `${commitOutputDir}/screenshot.png`;
       console.log(`Capturing screenshot to ${screenshotPath}...`);
-      const captureSuccess = await captureScreen(screenshotPath);
+      const captureSuccess = await captureScreen(screenshotPath, screenRect);
       
       if (captureSuccess) {
         console.log("Screenshot captured successfully");

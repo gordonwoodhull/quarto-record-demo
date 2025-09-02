@@ -1,20 +1,15 @@
 // capture.ts - Screen capture functionality
 
 import { ScreenRect } from "./types.ts";
-import { getLastSelectionRect } from "./utils.ts";
 
 /**
  * Captures a screenshot of a rectangular area of the screen
  * @param outputPath Path where the screenshot should be saved
- * @param rect Optional rectangle coordinates (if not provided, will use last selection)
+ * @param rect Rectangle coordinates to capture
  * @returns True if capture was successful, false otherwise
  */
-export async function captureScreen(outputPath: string, rect?: ScreenRect): Promise<boolean> {
+export async function captureScreen(outputPath: string, rect: ScreenRect): Promise<boolean> {
   try {
-    // If no rect provided, get the last selection
-    if (!rect) {
-      rect = await getLastSelectionRect();
-    }
     
     // Format the rectangle coordinates
     const rectStr = `${rect.x},${rect.y},${rect.width},${rect.height}`;
