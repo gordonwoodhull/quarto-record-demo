@@ -46,56 +46,41 @@ export async function isGitRepository(repoDir: string): Promise<boolean> {
  */
 export async function getGitHistory(repoDir: string, startCommit?: string): Promise<GitCommit[]> {
   try {
-    // Check if the directory is a git repository
-    if (!await isGitRepository(repoDir)) {
-      throw new Error(`The directory '${repoDir}' is not a git repository`);
-    }
-    
     // Change to the repository directory
     const originalDir = Deno.cwd();
     Deno.chdir(repoDir);
     
-    // If no start commit provided, get the first commit hash
-    if (!startCommit) {
-      const firstCommitCommand = new Deno.Command("git", {
-        args: ["rev-list", "--max-parents=0", "HEAD"],
+    let command;
+    
+    if (startCommit) {
+      // If start commit is provided, use rev-list from that commit to HEAD
+      command = new Deno.Command("git", {
+        args: ["rev-list", "--reverse", "--format=%h|%s|%an|%ad", "--no-commit-header", `${startCommit}^..HEAD`],
         stdout: "piped",
         stderr: "piped",
       });
-      
-      const firstOutput = await firstCommitCommand.output();
-      if (!firstOutput || !firstOutput.success) {
-        throw new Error("Failed to get initial commit hash");
-      }
-      
-      startCommit = new TextDecoder().decode(firstOutput.stdout).trim();
+    } else {
+      // If no start commit, get all commits from the beginning
+      command = new Deno.Command("git", {
+        args: ["rev-list", "--reverse", "--format=%h|%s|%an|%ad", "--no-commit-header", "HEAD"],
+        stdout: "piped",
+        stderr: "piped",
+      });
     }
-    
-    // Get all commits from start commit to HEAD
-    // Format: %h (abbreviated hash), %s (subject), %an (author name), %ad (author date)
-    let args = ["log", "--format=%h|%s|%an|%ad"];
-    
-    // If using a specific start commit, add range parameter
-    // Don't use the ^ notation as it fails on the first commit
-    if (startCommit) {
-      args.push(`${startCommit}..HEAD`);
-    }
-    
-    const command = new Deno.Command("git", {
-      args,
-      stdout: "piped",
-      stderr: "piped",
-    });
     
     const output = await command.output();
-    if (!output || !output.success) {
-      const stderr = new TextDecoder().decode(output?.stderr ?? new Uint8Array());
-      throw new Error(`Failed to get git history${startCommit ? ` from ${startCommit}` : ''}: ${stderr}`);
+    
+    // Restore original directory
+    Deno.chdir(originalDir);
+    
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to get git history: ${stderr}`);
     }
     
     const outputText = new TextDecoder().decode(output.stdout).trim();
     if (!outputText) {
-      throw new Error("No git history found or invalid start commit");
+      return []; // No commits found, return empty array
     }
     
     // Parse the output into GitCommit objects
@@ -104,11 +89,7 @@ export async function getGitHistory(repoDir: string, startCommit?: string): Prom
       return { hash, message, author, date };
     });
     
-    // Restore original directory
-    Deno.chdir(originalDir);
-    
-    // Return commits in chronological order (oldest first)
-    return commits.reverse();
+    return commits; // Already in chronological order (oldest first)
   } catch (error) {
     throw new Error(`Failed to get git history: ${error.message}`);
   }
