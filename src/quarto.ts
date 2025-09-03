@@ -1,11 +1,22 @@
 // quarto.ts - Quarto preview process management
 
 /**
- * Starts a Quarto preview process
- * @param file Optional QMD file to preview
- * @returns Process object for the Quarto preview
+ * Result of starting a Quarto preview process
  */
-export async function startQuartoPreview(file?: string): Promise<Deno.Process> {
+export interface QuartoPreviewResult {
+  /** The process object for the Quarto preview */
+  process: Deno.Process;
+  
+  /** URL where the Quarto preview is being served */
+  url: string;
+}
+
+/**
+ * Starts a Quarto preview process and waits for it to be ready
+ * @param file Optional QMD file to preview
+ * @returns Promise that resolves with the process and URL when the preview is ready
+ */
+export async function startQuartoPreview(file?: string): Promise<QuartoPreviewResult> {
   const args = ["preview"];
   
   // Add file if specified
@@ -22,18 +33,109 @@ export async function startQuartoPreview(file?: string): Promise<Deno.Process> {
   
   const process = quartoProcess.spawn();
   
-  // Wait a moment to ensure the process started
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Wait for the server to be ready and browser to load the page
+  console.log("Waiting for Quarto server to start and page to load...");
+  const url = await waitForQuartoServer(process);
   
-  return process;
+  return {
+    process,
+    url
+  };
+}
+
+/**
+ * Waits for the Quarto server to start and the browser to load the page
+ * @param process The Quarto preview process
+ * @returns The URL where Quarto is serving the preview
+ */
+async function waitForQuartoServer(process: Deno.Process): Promise<string> {
+  const decoder = new TextDecoder();
+  let url = "";
+  
+  // Create a promise for the timeout
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("Timed out waiting for Quarto preview server to start"));
+    }, 60000); // 60 seconds timeout
+  });
+  
+  // Process the stdout stream
+  const processStdout = async (): Promise<string> => {
+    const reader = process.stdout.getReader();
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        console.log("Quarto:", text);
+        
+        // Look for the Listening message to extract the URL
+        const listeningMatch = text.match(/Listening on (http:\/\/[^\/\s]+)/);
+        if (listeningMatch && url === "") {
+          url = listeningMatch[1];
+          console.log(`Quarto server started at ${url}`);
+        }
+        
+        // When we see a GET request, the browser has loaded the page
+        if (text.includes("GET:") && url !== "") {
+          console.log("Browser has loaded the page");
+          
+          // Give a little extra time for the page to render fully
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Release the reader lock and return the URL
+          reader.releaseLock();
+          return url;
+        }
+      }
+      
+      throw new Error("Quarto stdout stream ended before server was ready");
+    } catch (error) {
+      reader.releaseLock();
+      throw error;
+    }
+  };
+  
+  // Start monitoring stderr in the background
+  const monitorStderr = async (): Promise<void> => {
+    const reader = process.stderr.getReader();
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        console.error("Quarto error:", text);
+      }
+    } catch (error) {
+      console.error("Error reading Quarto stderr:", error);
+    } finally {
+      reader.releaseLock();
+    }
+  };
+  
+  // Start the stderr monitoring (no need to await it)
+  monitorStderr();
+  
+  // Wait for either the server to be ready or the timeout to occur
+  return Promise.race([
+    processStdout(),
+    timeoutPromise
+  ]);
 }
 
 /**
  * Stops a Quarto preview process
- * @param process The Quarto preview process to stop
+ * @param result The Quarto preview result to stop
  */
-export async function stopQuartoPreview(process: Deno.Process): Promise<void> {
+export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Process): Promise<void> {
   try {
+    // Handle both new and old API
+    const process = 'process' in result ? result.process : result;
+    
     // Try to kill the process gracefully
     process.kill("SIGTERM");
     
@@ -44,6 +146,7 @@ export async function stopQuartoPreview(process: Deno.Process): Promise<void> {
     
     // Try to force kill if graceful stop failed
     try {
+      const process = 'process' in result ? result.process : result;
       process.kill("SIGKILL");
     } catch (e) {
       // Process may already be gone, ignore

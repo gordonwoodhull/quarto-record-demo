@@ -61,13 +61,10 @@ async function main() {
       await ensureDir(commitOutputDir);
       console.log(`Created output directory: ${commitOutputDir}`);
       
-      // Start Quarto preview
+      // Start Quarto preview and wait for it to be ready
       console.log("Starting Quarto preview...");
-      const quartoProcess = await startQuartoPreview(options.file);
-      
-      // Wait for Quarto to render (adjust as needed)
-      console.log("Waiting for Quarto to render...");
-      await sleep(5000);
+      const quartoResult = await startQuartoPreview(options.file);
+      console.log(`Quarto preview ready at ${quartoResult.url}`);
       
       // Capture screenshot
       const screenshotPath = `${commitOutputDir}/screenshot.png`;
@@ -82,7 +79,7 @@ async function main() {
       
       // Stop Quarto preview
       console.log("Stopping Quarto preview...");
-      await stopQuartoPreview(quartoProcess);
+      await stopQuartoPreview(quartoResult);
       
       // Copy additional file if specified
       if (options.copyFile) {
