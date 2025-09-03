@@ -1,7 +1,7 @@
 // main.ts - Main execution flow for the Quarto Record Demo
 
 import { parseArgs } from "./cli.ts";
-import { getGitHistory, checkoutCommit } from "./git.ts";
+import { getGitHistory, checkoutCommit, isGitRepository } from "./git.ts";
 import { startQuartoPreview, stopQuartoPreview } from "./quarto.ts";
 import { captureScreen, copyFile } from "./capture.ts";
 import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
@@ -34,6 +34,13 @@ async function main() {
     if (options.file) console.log("File to preview:", options.file);
     if (options.startCommit) console.log("Starting commit:", options.startCommit);
     if (options.copyFile) console.log("File to copy:", options.copyFile);
+    
+    // Check if input directory is a git repository
+    console.log("Checking if input directory is a git repository...");
+    const isGitRepo = await isGitRepository(options.inputDir);
+    if (!isGitRepo) {
+      throw new Error(`The directory '${options.inputDir}' is not a git repository`);
+    }
     
     // Get git history
     console.log("Retrieving git history...");
