@@ -59,9 +59,28 @@ async function waitForQuartoServer(process: Deno.Process): Promise<string> {
     }, 60000); // 60 seconds timeout
   });
   
-  // Process the stdout stream
-  const processStdout = async (): Promise<string> => {
+  // Process the stdout stream just to see its output, but don't wait on it
+  const logStdout = async (): Promise<void> => {
     const reader = process.stdout.getReader();
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        console.log("Quarto stdout:", text);
+      }
+    } catch (error) {
+      console.error("Error reading Quarto stdout:", error);
+    } finally {
+      reader.releaseLock();
+    }
+  };
+  
+  // Process the stderr stream - Quarto sends the important server messages here
+  const processStderr = async (): Promise<string> => {
+    const reader = process.stderr.getReader();
     
     try {
       while (true) {
@@ -91,38 +110,19 @@ async function waitForQuartoServer(process: Deno.Process): Promise<string> {
         }
       }
       
-      throw new Error("Quarto stdout stream ended before server was ready");
+      throw new Error("Quarto stderr stream ended before server was ready");
     } catch (error) {
       reader.releaseLock();
       throw error;
     }
   };
   
-  // Start monitoring stderr in the background
-  const monitorStderr = async (): Promise<void> => {
-    const reader = process.stderr.getReader();
-    
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const text = decoder.decode(value);
-        console.error("Quarto error:", text);
-      }
-    } catch (error) {
-      console.error("Error reading Quarto stderr:", error);
-    } finally {
-      reader.releaseLock();
-    }
-  };
-  
-  // Start the stderr monitoring (no need to await it)
-  monitorStderr();
+  // Start the stdout logging (no need to await it)
+  logStdout();
   
   // Wait for either the server to be ready or the timeout to occur
   return Promise.race([
-    processStdout(),
+    processStderr(),
     timeoutPromise
   ]);
 }
