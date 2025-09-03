@@ -96,6 +96,8 @@ async function main() {
     }
     
     console.log("\nQuarto Record Demo - Completed successfully!");
+    // Force exit the process regardless of any hanging operations
+    Deno.exit(0);
   } catch (error) {
     console.error(`Error: ${error.message}`);
     Deno.exit(1);
