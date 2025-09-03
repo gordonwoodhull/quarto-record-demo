@@ -73,15 +73,24 @@ export async function getGitHistory(repoDir: string, startCommit?: string): Prom
     
     // Get all commits from start commit to HEAD
     // Format: %h (abbreviated hash), %s (subject), %an (author name), %ad (author date)
+    let args = ["log", "--format=%h|%s|%an|%ad"];
+    
+    // If using a specific start commit, add range parameter
+    // Don't use the ^ notation as it fails on the first commit
+    if (startCommit) {
+      args.push(`${startCommit}..HEAD`);
+    }
+    
     const command = new Deno.Command("git", {
-      args: ["log", "--format=%h|%s|%an|%ad", `${startCommit}^..HEAD`],
+      args,
       stdout: "piped",
       stderr: "piped",
     });
     
     const output = await command.output();
     if (!output || !output.success) {
-      throw new Error(`Failed to get git history from ${startCommit}`);
+      const stderr = new TextDecoder().decode(output?.stderr ?? new Uint8Array());
+      throw new Error(`Failed to get git history${startCommit ? ` from ${startCommit}` : ''}: ${stderr}`);
     }
     
     const outputText = new TextDecoder().decode(output.stdout).trim();
