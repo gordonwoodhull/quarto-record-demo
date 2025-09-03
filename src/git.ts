@@ -20,9 +20,18 @@ export async function isGitRepository(repoDir: string): Promise<boolean> {
     });
     
     const output = await command.output();
+    
+    // Make sure to change back to the original directory
     Deno.chdir(originalDir);
     
-    return output && output.status && output.status.success;
+    // Remove debug console logs
+    if (output && output.success) {
+      // Command succeeded, now check if stdout contains 'true'
+      const stdout = new TextDecoder().decode(output.stdout).trim();
+      return stdout === 'true';
+    }
+    
+    return false;
   } catch (error) {
     console.error(`Error checking if directory is a git repository: ${error.message}`);
     return false;
@@ -55,7 +64,7 @@ export async function getGitHistory(repoDir: string, startCommit?: string): Prom
       });
       
       const firstOutput = await firstCommitCommand.output();
-      if (!firstOutput || !firstOutput.status || !firstOutput.status.success) {
+      if (!firstOutput || !firstOutput.success) {
         throw new Error("Failed to get initial commit hash");
       }
       
@@ -71,7 +80,7 @@ export async function getGitHistory(repoDir: string, startCommit?: string): Prom
     });
     
     const output = await command.output();
-    if (!output || !output.status || !output.status.success) {
+    if (!output || !output.success) {
       throw new Error(`Failed to get git history from ${startCommit}`);
     }
     
@@ -125,7 +134,7 @@ export async function checkoutCommit(repoDir: string, commitHash: string): Promi
     
     const output = await command.output();
     
-    if (!output || !output.status || !output.status.success) {
+    if (!output || !output.success) {
       const stderr = new TextDecoder().decode(output?.stderr ?? new Uint8Array());
       throw new Error(`Failed to checkout commit ${commitHash}: ${stderr}`);
     }
