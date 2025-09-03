@@ -21,17 +21,21 @@ export async function captureScreen(outputPath: string, rect: ScreenRect): Promi
       stderr: "piped",
     });
     
-    const { status } = await command.output();
+    const output = await command.output();
     
-    if (!status.success) {
+    if (!output.success) {
       throw new Error("Screen capture failed");
     }
     
-    // Verify the file exists
+    // Verify the file exists and has content
     try {
-      await Deno.stat(outputPath);
+      const fileInfo = await Deno.stat(outputPath);
+      if (fileInfo.size === 0) {
+        throw new Error("Screenshot file is empty");
+      }
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error(`Screenshot file verification error: ${err.message}`);
       return false;
     }
   } catch (error) {

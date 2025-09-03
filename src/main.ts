@@ -6,6 +6,7 @@ import { startQuartoPreview, stopQuartoPreview } from "./quarto.ts";
 import { captureScreen, copyFile } from "./capture.ts";
 import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
 import { checkPermissions, displayScreenCapturePermissionWarning } from "./permissions.ts";
+import { basename } from "https://deno.land/std/path/mod.ts";
 
 /**
  * Main function that runs the Quarto Record Demo utility
@@ -75,6 +76,7 @@ async function main() {
         console.log("Screenshot captured successfully");
       } else {
         console.error("Failed to capture screenshot");
+        throw new Error("Screenshot capture failed - terminating process");
       }
       
       // Stop Quarto preview
@@ -83,7 +85,7 @@ async function main() {
       
       // Copy additional file if specified
       if (options.copyFile) {
-        const destPath = `${commitOutputDir}/${Deno.basename(options.copyFile)}`;
+        const destPath = `${commitOutputDir}/${basename(options.copyFile)}`;
         console.log(`Copying ${options.copyFile} to ${destPath}...`);
         const copySuccess = await copyFile(options.copyFile, destPath);
         
@@ -91,6 +93,7 @@ async function main() {
           console.log("File copied successfully");
         } else {
           console.error("Failed to copy file");
+          throw new Error("File copy failed - terminating process");
         }
       }
       
