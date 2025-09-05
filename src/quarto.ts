@@ -142,11 +142,29 @@ export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Proce
     // Handle both new and old API
     const process = 'process' in result ? result.process : result;
     
-    // Try to kill the process gracefully
-    process.kill("SIGTERM");
+    // First try to kill all processes matching "quarto preview"
+    try {
+      console.log("Killing all quarto preview processes...");
+      const pkillCommand = new Deno.Command("pkill", {
+        args: ["-f", "quarto preview"],
+        stderr: "null",
+        stdout: "null",
+      });
+      await pkillCommand.output();
+    } catch (e) {
+      // Ignore errors if pkill fails
+      console.log("pkill command failed or found no matching processes");
+    }
     
-    // Wait for the process to exit
-    await process.status();
+    // Also try to kill the process gracefully
+    try {
+      process.kill("SIGTERM");
+      
+      // Wait for the process to exit
+      await process.status();
+    } catch (e) {
+      // Process may already be gone (killed by pkill), ignore
+    }
   } catch (error) {
     console.error(`Error stopping Quarto preview: ${error.message}`);
     
