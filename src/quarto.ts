@@ -107,8 +107,8 @@ async function waitForQuartoServer(process: Deno.Process): Promise<string> {
         if (text.includes("GET:") && url !== "") {
           console.log("Browser has loaded the page");
           
-          // Give a little extra time for the page to render fully
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Give extra time for the page to render fully (increased from 500ms to 3000ms)
+          await new Promise(resolve => setTimeout(resolve, 3000));
           
           // Release the reader lock and return the URL
           reader.releaseLock();
