@@ -14,14 +14,20 @@ export interface QuartoPreviewResult {
 /**
  * Starts a Quarto preview process and waits for it to be ready
  * @param file Optional QMD file to preview
+ * @param profile Optional profile name to use
  * @returns Promise that resolves with the process and URL when the preview is ready
  */
-export async function startQuartoPreview(file?: string): Promise<QuartoPreviewResult> {
+export async function startQuartoPreview(file?: string, profile?: string): Promise<QuartoPreviewResult> {
   const args = ["preview"];
   
   // Add file if specified
   if (file) {
     args.push(file);
+  }
+  
+  // Add profile if specified
+  if (profile) {
+    args.push("--profile", profile);
   }
   
   // Start Quarto preview process
@@ -140,7 +146,7 @@ export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Proce
     process.kill("SIGTERM");
     
     // Wait for the process to exit
-    await process.status;
+    await process.status();
   } catch (error) {
     console.error(`Error stopping Quarto preview: ${error.message}`);
     

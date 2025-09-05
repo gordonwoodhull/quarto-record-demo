@@ -18,6 +18,13 @@ export interface QuartoRecordOptions {
   
   /** Optional file to copy to each output directory */
   copyFile?: string;
+  
+  /** 
+   * Profile group index to use (mutually exclusive with commit-based rendering)
+   * If defined, will use profiles from the specified group index in _quarto.yml
+   * If set to true with no value, will use the first group (index 0)
+   */
+  profileGroupIndex?: number;
 }
 
 /**
@@ -52,4 +59,33 @@ export interface GitCommit {
   
   /** Commit date */
   date: string;
+}
+
+/**
+ * Configuration for processing an item (commit or profile)
+ */
+export interface ProcessItemOptions {
+  /** Item identifier (commit hash or profile name) */
+  itemId: string;
+  
+  /** Item description (commit message or profile description) */
+  itemDescription: string;
+  
+  /** Output directory for this item */
+  outputDir: string;
+  
+  /** Input directory path */
+  inputDir: string;
+  
+  /** File to preview */
+  file?: string;
+  
+  /** Profile name (for profile mode only) */
+  profile?: string;
+  
+  /** File to copy */
+  copyFile?: string;
+  
+  /** Screen capture rectangle */
+  screenRect: ScreenRect;
 }

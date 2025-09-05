@@ -14,7 +14,8 @@ export function parseArgs(): QuartoRecordOptions {
   // At least one argument (output directory) is required
   if (args.length < 1) {
     throw new Error(
-      "Usage: quarto-record OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE]"
+      "Usage: quarto-record-demo OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE] [--profile-group [INDEX]]"
+      + "\n\nModes (mutually exclusive):\n  Default: Process Git commits from history\n  --profile-group: Process profiles from _quarto.yml profile group"
     );
   }
   
@@ -26,6 +27,7 @@ export function parseArgs(): QuartoRecordOptions {
   let file: string | undefined;
   let startCommit: string | undefined;
   let copyFile: string | undefined;
+  let profileGroupIndex: number | undefined;
   
   // Parse named arguments
   for (let i = 1; i < args.length; i++) {
@@ -39,6 +41,14 @@ export function parseArgs(): QuartoRecordOptions {
       startCommit = args[++i];
     } else if (arg === "--copy-file" && i + 1 < args.length) {
       copyFile = args[++i];
+    } else if (arg === "--profile-group") {
+      // Check if the next argument is a number
+      if (i + 1 < args.length && !isNaN(Number(args[i + 1])) && !args[i + 1].startsWith("--")) {
+        profileGroupIndex = Number(args[++i]);
+      } else {
+        // If no number is provided, use index 0 (the first group)
+        profileGroupIndex = 0;
+      }
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -53,6 +63,11 @@ export function parseArgs(): QuartoRecordOptions {
     absCopyFile = resolve(copyFile);
   }
   
+  // Check for mutually exclusive options
+  if (profileGroupIndex !== undefined && startCommit) {
+    throw new Error("--profile-group and --start-commit are mutually exclusive options");
+  }
+  
   // Return parsed options
   return {
     outputDir: absOutputDir,
@@ -60,5 +75,6 @@ export function parseArgs(): QuartoRecordOptions {
     file,
     startCommit,
     copyFile: absCopyFile,
+    profileGroupIndex,
   };
 }

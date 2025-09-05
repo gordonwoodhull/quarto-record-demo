@@ -6,7 +6,57 @@ import { startQuartoPreview, stopQuartoPreview } from "./quarto.ts";
 import { captureScreen, copyFile } from "./capture.ts";
 import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
 import { checkPermissions, displayScreenCapturePermissionWarning } from "./permissions.ts";
+import { getProfilesFromGroup } from "./yaml.ts";
+import { ProcessItemOptions } from "./types.ts";
 import { basename } from "https://deno.land/std/path/mod.ts";
+
+
+/**
+ * Process a single item (commit or profile)
+ */
+async function processItem(options: ProcessItemOptions): Promise<void> {
+  // Create output directory for this item
+  const itemOutputDir = `${options.outputDir}/${options.itemId}`;
+  await ensureDir(itemOutputDir);
+  console.log(`Created output directory: ${itemOutputDir}`);
+  
+  // Start Quarto preview
+  console.log("Starting Quarto preview...");
+  const quartoResult = await startQuartoPreview(options.file, options.profile);
+  console.log(`Quarto preview ready at ${quartoResult.url}`);
+  
+  // Capture screenshot
+  const screenshotPath = `${itemOutputDir}/screenshot.png`;
+  console.log(`Capturing screenshot to ${screenshotPath}...`);
+  const captureSuccess = await captureScreen(screenshotPath, options.screenRect);
+  
+  if (captureSuccess) {
+    console.log("Screenshot captured successfully");
+  } else {
+    console.error("Failed to capture screenshot");
+    throw new Error("Screenshot capture failed - terminating process");
+  }
+  
+  // Stop Quarto preview
+  console.log("Stopping Quarto preview...");
+  await stopQuartoPreview(quartoResult);
+  
+  // Copy additional file if specified
+  if (options.copyFile) {
+    const destPath = `${itemOutputDir}/${basename(options.copyFile)}`;
+    console.log(`Copying ${options.copyFile} to ${destPath}...`);
+    const copySuccess = await copyFile(options.copyFile, destPath);
+    
+    if (copySuccess) {
+      console.log("File copied successfully");
+    } else {
+      console.error("Failed to copy file");
+      throw new Error("File copy failed - terminating process");
+    }
+  }
+  
+  console.log(`Completed processing ${options.itemDescription}`);
+}
 
 /**
  * Main function that runs the Quarto Record Demo utility
@@ -36,63 +86,59 @@ async function main() {
     if (options.startCommit) console.log("Starting commit:", options.startCommit);
     if (options.copyFile) console.log("File to copy:", options.copyFile);
     
-    // Git operations will fail if not a repository, so no need for explicit check
-    
-    // Get git history
-    console.log("Retrieving git history...");
-    const commits = await getGitHistory(options.inputDir, options.startCommit);
-    console.log(`Found ${commits.length} commits to process`);
-    
-    // Process each commit
-    for (let i = 0; i < commits.length; i++) {
-      const commit = commits[i];
-      console.log(`\nProcessing commit ${i + 1}/${commits.length}: ${commit.hash} - ${commit.message}`);
+    // Determine which mode to run in
+    if (options.profileGroupIndex !== undefined) {
+      // Profile group mode
+      console.log(`Using profile group mode with index ${options.profileGroupIndex}`);
       
-      // Checkout the commit
-      console.log(`Checking out commit ${commit.hash}...`);
-      await checkoutCommit(options.inputDir, commit.hash);
+      // Get profiles from the specified group
+      const profiles = await getProfilesFromGroup(options.inputDir, options.profileGroupIndex);
+      console.log(`Found ${profiles.length} profiles to process: ${profiles.join(", ")}`);
       
-      // Create output directory for this commit
-      const commitOutputDir = `${options.outputDir}/${commit.hash}`;
-      await ensureDir(commitOutputDir);
-      console.log(`Created output directory: ${commitOutputDir}`);
-      
-      // Start Quarto preview and wait for it to be ready
-      console.log("Starting Quarto preview...");
-      const quartoResult = await startQuartoPreview(options.file);
-      console.log(`Quarto preview ready at ${quartoResult.url}`);
-      
-      // Capture screenshot
-      const screenshotPath = `${commitOutputDir}/screenshot.png`;
-      console.log(`Capturing screenshot to ${screenshotPath}...`);
-      const captureSuccess = await captureScreen(screenshotPath, screenRect);
-      
-      if (captureSuccess) {
-        console.log("Screenshot captured successfully");
-      } else {
-        console.error("Failed to capture screenshot");
-        throw new Error("Screenshot capture failed - terminating process");
-      }
-      
-      // Stop Quarto preview
-      console.log("Stopping Quarto preview...");
-      await stopQuartoPreview(quartoResult);
-      
-      // Copy additional file if specified
-      if (options.copyFile) {
-        const destPath = `${commitOutputDir}/${basename(options.copyFile)}`;
-        console.log(`Copying ${options.copyFile} to ${destPath}...`);
-        const copySuccess = await copyFile(options.copyFile, destPath);
+      // Process each profile
+      for (let i = 0; i < profiles.length; i++) {
+        const profile = profiles[i];
+        console.log(`\nProcessing profile ${i + 1}/${profiles.length}: ${profile}`);
         
-        if (copySuccess) {
-          console.log("File copied successfully");
-        } else {
-          console.error("Failed to copy file");
-          throw new Error("File copy failed - terminating process");
-        }
+        await processItem({
+          itemId: profile,
+          itemDescription: `profile ${profile}`,
+          outputDir: options.outputDir,
+          inputDir: options.inputDir,
+          file: options.file,
+          profile,
+          copyFile: options.copyFile,
+          screenRect
+        });
       }
+    } else {
+      // Git history mode
+      console.log("Using git history mode");
       
-      console.log(`Completed processing commit ${commit.hash}`);
+      // Get git history
+      console.log("Retrieving git history...");
+      const commits = await getGitHistory(options.inputDir, options.startCommit);
+      console.log(`Found ${commits.length} commits to process`);
+      
+      // Process each commit
+      for (let i = 0; i < commits.length; i++) {
+        const commit = commits[i];
+        console.log(`\nProcessing commit ${i + 1}/${commits.length}: ${commit.hash} - ${commit.message}`);
+        
+        // Checkout the commit
+        console.log(`Checking out commit ${commit.hash}...`);
+        await checkoutCommit(options.inputDir, commit.hash);
+        
+        await processItem({
+          itemId: commit.hash,
+          itemDescription: `commit ${commit.hash}`,
+          outputDir: options.outputDir,
+          inputDir: options.inputDir,
+          file: options.file,
+          copyFile: options.copyFile,
+          screenRect
+        });
+      }
     }
     
     console.log("\nQuarto Record Demo - Completed successfully!");
