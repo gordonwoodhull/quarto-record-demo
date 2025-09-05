@@ -142,7 +142,26 @@ export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Proce
     // Handle both new and old API
     const process = 'process' in result ? result.process : result;
     
-    // First try to kill all processes matching "quarto preview"
+    // First try to kill the process group using negative PID
+    try {
+      const pid = process.pid;
+      console.log(`Killing process group with PID ${pid}...`);
+      
+      // On Unix systems, sending a signal to negative PID kills the entire process group
+      const killCommand = new Deno.Command("kill", {
+        args: ["-TERM", `-${pid}`],
+        stderr: "null",
+        stdout: "null",
+      });
+      await killCommand.output();
+      
+      // Small delay to allow processes to terminate
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (e) {
+      console.log("Process group termination failed, falling back to other methods");
+    }
+    
+    // Then try to kill all processes matching "quarto preview"
     try {
       console.log("Killing all quarto preview processes...");
       const pkillCommand = new Deno.Command("pkill", {
@@ -151,19 +170,27 @@ export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Proce
         stdout: "null",
       });
       await pkillCommand.output();
+      
+      // Small delay to allow processes to terminate
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
       // Ignore errors if pkill fails
       console.log("pkill command failed or found no matching processes");
     }
     
-    // Also try to kill the process gracefully
+    // Also try to kill the process gracefully through Deno API
     try {
       process.kill("SIGTERM");
       
-      // Wait for the process to exit
-      await process.status();
+      // Wait for the process to exit (with timeout)
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout waiting for process to exit")), 5000);
+      });
+      
+      await Promise.race([process.status(), timeoutPromise]);
     } catch (e) {
-      // Process may already be gone (killed by pkill), ignore
+      // Process may already be gone, ignore
+      console.log("Process may already be terminated or timed out waiting");
     }
   } catch (error) {
     console.error(`Error stopping Quarto preview: ${error.message}`);
