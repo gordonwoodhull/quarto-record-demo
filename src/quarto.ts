@@ -142,65 +142,77 @@ export async function stopQuartoPreview(result: QuartoPreviewResult | Deno.Proce
     // Handle both new and old API
     const process = 'process' in result ? result.process : result;
     
-    // First try to kill the process group using negative PID
+    // 1. First try to kill the process we know about
+    console.log(`Killing Quarto preview process with PID ${process.pid}...`);
     try {
-      const pid = process.pid;
-      console.log(`Killing process group with PID ${pid}...`);
+      process.kill("SIGTERM");
       
-      // On Unix systems, sending a signal to negative PID kills the entire process group
-      const killCommand = new Deno.Command("kill", {
-        args: ["-TERM", `-${pid}`],
-        stderr: "null",
-        stdout: "null",
+      // Wait for the process to exit with a timeout
+      const statusPromise = process.status;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout waiting for process to exit")), 2000);
       });
-      await killCommand.output();
       
-      // Small delay to allow processes to terminate
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await Promise.race([statusPromise, timeoutPromise]);
+      console.log(`Successfully terminated process ${process.pid}`);
     } catch (e) {
-      console.log("Process group termination failed, falling back to other methods");
+      console.log(`Process ${process.pid} may be stubborn or already terminated: ${e.message}`);
+      
+      // Try to force kill
+      try {
+        process.kill("SIGKILL");
+      } catch (innerE) {
+        // Process may already be gone, ignore
+      }
     }
     
-    // Then try to kill all processes matching "quarto preview"
+    // 2. Then kill orphaned Deno processes running Quarto preview
+    console.log("Finding and killing orphaned Deno processes running Quarto preview...");
     try {
-      console.log("Killing all quarto preview processes...");
       const pkillCommand = new Deno.Command("pkill", {
-        args: ["-f", "quarto preview"],
+        args: ["-f", "deno.*quarto\\.ts preview"],
         stderr: "null",
         stdout: "null",
       });
       await pkillCommand.output();
+      console.log("Sent kill signal to any orphaned Deno processes");
       
-      // Small delay to allow processes to terminate
+      // Give processes a moment to terminate
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
-      // Ignore errors if pkill fails
-      console.log("pkill command failed or found no matching processes");
+      // pkill returns non-zero if no processes match
+      console.log("No matching orphaned processes found or pkill failed");
     }
     
-    // Also try to kill the process gracefully through Deno API
+    // 3. Check if there are still processes to clean up (verification step)
     try {
-      process.kill("SIGTERM");
-      
-      // Wait for the process to exit (with timeout)
-      const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout waiting for process to exit")), 5000);
+      const checkCommand = new Deno.Command("pgrep", {
+        args: ["-f", "deno.*quarto\\.ts preview"],
+        stdout: "piped",
       });
+      const checkOutput = await checkCommand.output();
       
-      await Promise.race([process.status(), timeoutPromise]);
+      if (checkOutput.success) {
+        const remainingPids = new TextDecoder().decode(checkOutput.stdout).trim();
+        
+        if (remainingPids) {
+          console.log(`Found stubborn processes still running: ${remainingPids}`);
+          
+          // Force kill with SIGKILL
+          const forceKillCommand = new Deno.Command("pkill", {
+            args: ["-9", "-f", "deno.*quarto\\.ts preview"],
+            stderr: "null",
+            stdout: "null",
+          });
+          await forceKillCommand.output();
+          console.log("Sent SIGKILL to stubborn processes");
+        }
+      }
     } catch (e) {
-      // Process may already be gone, ignore
-      console.log("Process may already be terminated or timed out waiting");
+      // pgrep returns non-zero if no processes match, which is what we want
+      console.log("Verification complete - no remaining processes found");
     }
   } catch (error) {
     console.error(`Error stopping Quarto preview: ${error.message}`);
-    
-    // Try to force kill if graceful stop failed
-    try {
-      const process = 'process' in result ? result.process : result;
-      process.kill("SIGKILL");
-    } catch (e) {
-      // Process may already be gone, ignore
-    }
   }
 }
