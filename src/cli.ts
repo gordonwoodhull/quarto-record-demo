@@ -14,8 +14,11 @@ export function parseArgs(): QuartoRecordOptions {
   // At least one argument (output directory) is required
   if (args.length < 1) {
     throw new Error(
-      "Usage: quarto-record-demo OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE] [--profile-group [INDEX]]"
+      "Usage: quarto-record-demo OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE|brand] [--profile-group [INDEX]]"
       + "\n\nModes (mutually exclusive):\n  Default: Process Git commits from history\n  --profile-group: Process profiles from _quarto.yml profile group"
+      + "\n\nSpecial values:"
+      + "\n  --copy-file brand: In profile mode, reads _quarto-{profile}.yml for a 'brand' key"
+      + "\n                     and copies the specified file to _brand.yml in the output directory"
     );
   }
   
@@ -60,7 +63,8 @@ export function parseArgs(): QuartoRecordOptions {
   let absCopyFile: string | undefined;
   
   if (copyFile) {
-    absCopyFile = resolve(copyFile);
+    // Special handling for 'brand' keyword - don't resolve it as a path
+    absCopyFile = copyFile === "brand" ? "brand" : resolve(copyFile);
   }
   
   // Check for mutually exclusive options

@@ -54,3 +54,36 @@ export async function getProfilesFromGroup(inputDir: string, groupIndex: number 
     throw error;
   }
 }
+
+/**
+ * Gets the brand file path from a profile-specific Quarto config file
+ * @param inputDir Directory containing the Quarto configuration files
+ * @param profile Profile name to get the brand file for
+ * @returns Path to the brand file if found, null otherwise
+ */
+export async function getBrandPathFromProfileConfig(inputDir: string, profile: string): Promise<string | null> {
+  try {
+    // Read profile-specific config file (_quarto-{profile}.yml)
+    const profileYmlPath = `${inputDir}/_quarto-${profile}.yml`;
+    const profileYmlContent = await Deno.readTextFile(profileYmlPath);
+    
+    // Parse YAML content
+    const profileConfig = parse(profileYmlContent) as Record<string, any>;
+    
+    // Check if brand key exists
+    if (!profileConfig.brand) {
+      console.log(`No 'brand' key found in _quarto-${profile}.yml`);
+      return null;
+    }
+    
+    // Return the brand file path
+    return String(profileConfig.brand);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      console.error(`Profile config file _quarto-${profile}.yml not found`);
+    } else {
+      console.error(`Error reading profile config: ${error.message}`);
+    }
+    return null;
+  }
+}

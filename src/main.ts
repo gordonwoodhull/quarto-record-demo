@@ -6,9 +6,9 @@ import { startQuartoPreview, stopQuartoPreview } from "./quarto.ts";
 import { captureScreen, copyFile } from "./capture.ts";
 import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
 import { checkPermissions, displayScreenCapturePermissionWarning } from "./permissions.ts";
-import { getProfilesFromGroup } from "./yaml.ts";
+import { getProfilesFromGroup, getBrandPathFromProfileConfig } from "./yaml.ts";
 import { ProcessItemOptions } from "./types.ts";
-import { basename } from "https://deno.land/std/path/mod.ts";
+import { basename, resolve } from "https://deno.land/std/path/mod.ts";
 
 
 /**
@@ -43,15 +43,40 @@ async function processItem(options: ProcessItemOptions): Promise<void> {
   
   // Copy additional file if specified
   if (options.copyFile) {
-    const destPath = `${itemOutputDir}/${basename(options.copyFile)}`;
-    console.log(`Copying ${options.copyFile} to ${destPath}...`);
-    const copySuccess = await copyFile(options.copyFile, destPath);
-    
-    if (copySuccess) {
-      console.log("File copied successfully");
+    console.log(`Copy file option value: "${options.copyFile}"`);
+
+    if (options.copyFile === "brand" && options.profile) {
+      // Handle special "brand" keyword for profile mode
+      console.log(`Looking for brand file for profile ${options.profile}...`);
+      const brandFilePath = await getBrandPathFromProfileConfig(options.inputDir, options.profile);
+      
+      if (brandFilePath) {
+        const absoluteBrandPath = resolve(options.inputDir, brandFilePath);
+        const destPath = `${itemOutputDir}/_brand.yml`;
+        console.log(`Copying brand file from ${absoluteBrandPath} to ${destPath}...`);
+        const copySuccess = await copyFile(absoluteBrandPath, destPath);
+        
+        if (copySuccess) {
+          console.log("Brand file copied successfully");
+        } else {
+          console.error("Failed to copy brand file");
+          throw new Error("Brand file copy failed - terminating process");
+        }
+      } else {
+        console.log(`No brand file found for profile ${options.profile}, continuing without it`);
+      }
     } else {
-      console.error("Failed to copy file");
-      throw new Error("File copy failed - terminating process");
+      // Regular file copy
+      const destPath = `${itemOutputDir}/${basename(options.copyFile)}`;
+      console.log(`Copying ${options.copyFile} to ${destPath}...`);
+      const copySuccess = await copyFile(options.copyFile, destPath);
+      
+      if (copySuccess) {
+        console.log("File copied successfully");
+      } else {
+        console.error("Failed to copy file");
+        throw new Error("File copy failed - terminating process");
+      }
     }
   }
   
