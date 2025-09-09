@@ -28,7 +28,14 @@ export async function startQuartoPreview(file?: string, profile?: string): Promi
   // Add profile if specified
   if (profile) {
     args.push("--profile", profile);
+    args.push("-P", `profile:${profile}`);
   }
+
+  console.log('quarto command', {
+    args,
+    stdout: "piped",
+    stderr: "piped",
+  });
   
   // Start Quarto preview process
   const quartoProcess = new Deno.Command("quarto", {
