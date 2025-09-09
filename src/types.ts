@@ -25,6 +25,12 @@ export interface QuartoRecordOptions {
    * If set to true with no value, will use the first group (index 0)
    */
   profileGroupIndex?: number;
+  
+  /** Template file for generating slides */
+  slideTemplate?: string;
+  
+  /** Output file for slides (defaults to slides.qmdf) */
+  slideOutput?: string;
 }
 
 /**
@@ -88,4 +94,10 @@ export interface ProcessItemOptions {
   
   /** Screen capture rectangle */
   screenRect: ScreenRect;
+  
+  /** Template file for generating slides */
+  slideTemplate?: string;
+  
+  /** Output file for slides */
+  slideOutput?: string;
 }

@@ -14,11 +14,14 @@ export function parseArgs(): QuartoRecordOptions {
   // At least one argument (output directory) is required
   if (args.length < 1) {
     throw new Error(
-      "Usage: quarto-record-demo OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE|brand] [--profile-group [INDEX]]"
+      "Usage: quarto-record-demo OUTPUT_DIR [--input INPUT_DIR] [--file FILE.qmd] [--start-commit COMMIT] [--copy-file FILE|brand] [--profile-group [INDEX]] [--slide-template TEMPLATE_FILE] [--slide-output OUTPUT_FILE]"
       + "\n\nModes (mutually exclusive):\n  Default: Process Git commits from history\n  --profile-group: Process profiles from _quarto.yml profile group"
       + "\n\nSpecial values:"
       + "\n  --copy-file brand: In profile mode, reads _quarto-{profile}.yml for a 'brand' key"
       + "\n                     and copies the specified file to _brand.yml in the output directory"
+      + "\n\nSlide generation:"
+      + "\n  --slide-template: Template file for generating slides for each screenshot/file pair"
+      + "\n  --slide-output:   Output file for slides (defaults to slides.qmdf)"
     );
   }
   
@@ -31,6 +34,8 @@ export function parseArgs(): QuartoRecordOptions {
   let startCommit: string | undefined;
   let copyFile: string | undefined;
   let profileGroupIndex: number | undefined;
+  let slideTemplate: string | undefined;
+  let slideOutput: string | undefined;
   
   // Parse named arguments
   for (let i = 1; i < args.length; i++) {
@@ -52,6 +57,10 @@ export function parseArgs(): QuartoRecordOptions {
         // If no number is provided, use index 0 (the first group)
         profileGroupIndex = 0;
       }
+    } else if (arg === "--slide-template" && i + 1 < args.length) {
+      slideTemplate = args[++i];
+    } else if (arg === "--slide-output" && i + 1 < args.length) {
+      slideOutput = args[++i];
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -61,10 +70,20 @@ export function parseArgs(): QuartoRecordOptions {
   const absOutputDir = resolve(outputDir);
   const absInputDir = resolve(inputDir);
   let absCopyFile: string | undefined;
+  let absSlideTemplate: string | undefined;
   
   if (copyFile) {
     // Special handling for 'brand' keyword - don't resolve it as a path
     absCopyFile = copyFile === "brand" ? "brand" : resolve(copyFile);
+  }
+  
+  if (slideTemplate) {
+    absSlideTemplate = resolve(slideTemplate);
+    
+    // Set default for slideOutput if not provided
+    if (!slideOutput) {
+      slideOutput = "slides.qmdf";
+    }
   }
   
   // Check for mutually exclusive options
@@ -80,5 +99,7 @@ export function parseArgs(): QuartoRecordOptions {
     startCommit,
     copyFile: absCopyFile,
     profileGroupIndex,
+    slideTemplate: absSlideTemplate,
+    slideOutput
   };
 }

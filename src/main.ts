@@ -7,6 +7,7 @@ import { captureScreen, copyFile } from "./capture.ts";
 import { ensureDir, sleep, getLastSelectionRect } from "./utils.ts";
 import { checkPermissions, displayScreenCapturePermissionWarning } from "./permissions.ts";
 import { getProfilesFromGroup, getBrandPathFromProfileConfig } from "./yaml.ts";
+import { SlideGenerator } from "./slides.ts";
 import { ProcessItemOptions } from "./types.ts";
 import { basename, resolve } from "https://deno.land/std/path/mod.ts";
 
@@ -111,6 +112,14 @@ async function main() {
     if (options.startCommit) console.log("Starting commit:", options.startCommit);
     if (options.copyFile) console.log("File to copy:", options.copyFile);
     
+    // Initialize slide generator if template is provided
+    let slideGenerator: SlideGenerator | undefined;
+    if (options.slideTemplate) {
+      slideGenerator = new SlideGenerator();
+      console.log(`Using slide template: ${options.slideTemplate}`);
+      console.log(`Slide output will be written to: ${options.slideOutput}`);
+    }
+    
     // Determine which mode to run in
     if (options.profileGroupIndex !== undefined) {
       // Profile group mode
@@ -133,8 +142,19 @@ async function main() {
           file: options.file,
           profile,
           copyFile: options.copyFile,
-          screenRect
+          screenRect,
+          slideTemplate: options.slideTemplate,
+          slideOutput: options.slideOutput
         });
+        
+        // Add to slide generator if enabled
+        if (slideGenerator) {
+          // Just pass the filenames; paths will be constructed in generateSlides
+          const screenshotFilename = "screenshot.png";
+          const copiedFilename = options.copyFile === "brand" ? "_brand.yml" : 
+                                options.copyFile ? basename(options.copyFile) : undefined;
+          slideGenerator.addSlide(profile, screenshotFilename, copiedFilename);
+        }
       }
     } else {
       // Git history mode
@@ -161,9 +181,25 @@ async function main() {
           inputDir: options.inputDir,
           file: options.file,
           copyFile: options.copyFile,
-          screenRect
+          screenRect,
+          slideTemplate: options.slideTemplate,
+          slideOutput: options.slideOutput
         });
+        
+        // Add to slide generator if enabled
+        if (slideGenerator) {
+          // Just pass the filenames; paths will be constructed in generateSlides
+          const screenshotFilename = "screenshot.png";
+          const copiedFilename = options.copyFile ? basename(options.copyFile) : undefined;
+          slideGenerator.addSlide(commit.hash, screenshotFilename, copiedFilename);
+        }
       }
+    }
+    
+    // Generate slides if template is provided
+    if (slideGenerator && options.slideTemplate && options.slideOutput) {
+      console.log("\nGenerating slides...");
+      await slideGenerator.generateSlides(options.outputDir, options.slideTemplate, options.slideOutput);
     }
     
     console.log("\nQuarto Record Demo - Completed successfully!");
