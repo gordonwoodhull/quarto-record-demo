@@ -134,6 +134,7 @@ async function main() {
         const profile = profiles[i];
         console.log(`\nProcessing profile ${i + 1}/${profiles.length}: ${profile}`);
         
+        
         await processItem({
           itemId: profile,
           itemDescription: `profile ${profile}`,
@@ -169,6 +170,7 @@ async function main() {
       for (let i = 0; i < commits.length; i++) {
         const commit = commits[i];
         console.log(`\nProcessing commit ${i + 1}/${commits.length}: ${commit.hash} - ${commit.message}`);
+        
         
         // Checkout the commit
         console.log(`Checking out commit ${commit.hash}...`);

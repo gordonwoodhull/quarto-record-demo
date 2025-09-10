@@ -31,7 +31,37 @@ export async function startQuartoPreview(file?: string, profile?: string): Promi
     args.push("-P", `profile:${profile}`);
   }
 
-  console.log('quarto command', {
+  // First render the document before preview
+  console.log('Running quarto render first...');
+  const renderArgs = [...args];
+  renderArgs[0] = "render"; // Change "preview" to "render"
+  
+  try {
+    console.log('quarto render command', {
+      args: renderArgs,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    
+    const renderProcess = new Deno.Command("quarto", {
+      args: renderArgs,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    
+    const output = await renderProcess.output();
+    if (output.success) {
+      console.log("Quarto render completed successfully");
+    } else {
+      const stderr = new TextDecoder().decode(output.stderr);
+      console.error("Quarto render failed:", stderr);
+    }
+  } catch (error) {
+    console.error(`Error rendering Quarto document: ${error.message}`);
+    // Continue with preview even if render fails
+  }
+  
+  console.log('quarto preview command', {
     args,
     stdout: "piped",
     stderr: "piped",
