@@ -129,11 +129,17 @@ async function main() {
       const profiles = await getProfilesFromGroup(options.inputDir, options.profileGroupIndex);
       console.log(`Found ${profiles.length} profiles to process: ${profiles.join(", ")}`);
       
+      // Track profile execution times
+      const profileTimes: Record<string, number> = {};
+      let totalProfileTime = 0;
+      
       // Process each profile
       for (let i = 0; i < profiles.length; i++) {
         const profile = profiles[i];
         console.log(`\nProcessing profile ${i + 1}/${profiles.length}: ${profile}`);
         
+        // Start timing this profile run
+        const startTime = performance.now();
         
         await processItem({
           itemId: profile,
@@ -148,6 +154,13 @@ async function main() {
           slideOutput: options.slideOutput
         });
         
+        // Calculate and store execution time
+        const endTime = performance.now();
+        const executionTime = (endTime - startTime) / 1000; // Convert to seconds
+        profileTimes[profile] = executionTime;
+        totalProfileTime += executionTime;
+        console.log(`Profile ${profile} completed in ${executionTime.toFixed(2)} seconds`);
+        
         // Add to slide generator if enabled
         if (slideGenerator) {
           // Just pass the filenames; paths will be constructed in generateSlides
@@ -157,6 +170,16 @@ async function main() {
           slideGenerator.addSlide(profile, screenshotFilename, copiedFilename);
         }
       }
+      
+      // Display execution time summary
+      console.log("\n===== Profile Execution Times =====");
+      for (const [profile, time] of Object.entries(profileTimes)) {
+        console.log(`${profile}: ${time.toFixed(2)} seconds`);
+      }
+      const averageTime = totalProfileTime / profiles.length;
+      console.log(`\nAverage profile execution time: ${averageTime.toFixed(2)} seconds`);
+      console.log(`Total execution time for all profiles: ${totalProfileTime.toFixed(2)} seconds`);
+      console.log("==================================\n");
     } else {
       // Git history mode
       console.log("Using git history mode");
@@ -167,14 +190,20 @@ async function main() {
       console.log(`Found ${commits.length} commits to process`);
       
       // Process each commit
+      // Track commit execution times
+      const commitTimes: Record<string, number> = {};
+      let totalCommitTime = 0;
+      
       for (let i = 0; i < commits.length; i++) {
         const commit = commits[i];
         console.log(`\nProcessing commit ${i + 1}/${commits.length}: ${commit.hash} - ${commit.message}`);
         
-        
         // Checkout the commit
         console.log(`Checking out commit ${commit.hash}...`);
         await checkoutCommit(options.inputDir, commit.hash);
+        
+        // Start timing this commit run
+        const startTime = performance.now();
         
         await processItem({
           itemId: commit.hash,
@@ -188,6 +217,13 @@ async function main() {
           slideOutput: options.slideOutput
         });
         
+        // Calculate and store execution time
+        const endTime = performance.now();
+        const executionTime = (endTime - startTime) / 1000; // Convert to seconds
+        commitTimes[commit.hash] = executionTime;
+        totalCommitTime += executionTime;
+        console.log(`Commit ${commit.hash} completed in ${executionTime.toFixed(2)} seconds`);
+        
         // Add to slide generator if enabled
         if (slideGenerator) {
           // Just pass the filenames; paths will be constructed in generateSlides
@@ -196,6 +232,16 @@ async function main() {
           slideGenerator.addSlide(commit.hash, screenshotFilename, copiedFilename);
         }
       }
+      
+      // Display execution time summary
+      console.log("\n===== Commit Execution Times =====");
+      for (const [commitHash, time] of Object.entries(commitTimes)) {
+        console.log(`${commitHash}: ${time.toFixed(2)} seconds`);
+      }
+      const averageTime = totalCommitTime / commits.length;
+      console.log(`\nAverage commit execution time: ${averageTime.toFixed(2)} seconds`);
+      console.log(`Total execution time for all commits: ${totalCommitTime.toFixed(2)} seconds`);
+      console.log("==================================\n");
     }
     
     // Generate slides if template is provided
