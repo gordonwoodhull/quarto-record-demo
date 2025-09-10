@@ -55,10 +55,12 @@ export async function startQuartoPreview(file?: string, profile?: string): Promi
     } else {
       const stderr = new TextDecoder().decode(output.stderr);
       console.error("Quarto render failed:", stderr);
+      Deno.exit(1);
     }
   } catch (error) {
     console.error(`Error rendering Quarto document: ${error.message}`);
-    // Continue with preview even if render fails
+    // Terminate the process if render fails
+    Deno.exit(1);
   }
   
   console.log('quarto preview command', {
